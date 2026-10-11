@@ -700,6 +700,17 @@ pub const request_body: RequestBodyNS = RequestBodyNS(
 )
 
 // ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– //
+//                                  Security Requirement Object                                  //
+//                                      ––––––––––––––––––                                       //
+//              https://swagger.io/specification/v3.2/#security-requirement-object               //
+// ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– //
+
+pub type SecurityRequirement {
+  SecurityRequirement(name: String, scopes: List(String))
+  NoSecurityRequirement
+}
+
+// ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– //
 //                                       Operation Object                                        //
 //                                      ––––––––––––––––––                                       //
 //                    https://swagger.io/specification/v3.2/#operation-object                    //
@@ -714,7 +725,7 @@ pub type Operation {
     operation_id: Option(String),
     parameters: List(OrRef(Parameter)),
     responses: List(#(Int, OrRef(Response))),
-    security: List(String),
+    security: List(SecurityRequirement),
     request_body: Option(RequestBody),
   )
 }
@@ -752,7 +763,11 @@ fn operation_to_spec(operation: Operation) -> spec.Spec {
     #(
       "security",
       spec.array_of(operation.security, fn(sec) {
-        spec.object([#(sec, spec.array([]))])
+        case sec {
+          SecurityRequirement(name:, scopes:) ->
+            spec.object([#(name, spec.array(list.map(scopes, spec.string)))])
+          NoSecurityRequirement -> spec.object([])
+        }
       }),
     ),
     #(
@@ -839,8 +854,24 @@ pub fn operation_response_ref(
   )
 }
 
-pub fn operation_security(operation: Operation, security: String) -> Operation {
-  Operation(..operation, security: list.append(operation.security, [security]))
+pub fn operation_security(
+  operation: Operation,
+  security: String,
+  scopes: List(String),
+) -> Operation {
+  Operation(
+    ..operation,
+    security: list.append(operation.security, [
+      SecurityRequirement(name: security, scopes: scopes),
+    ]),
+  )
+}
+
+pub fn operation_no_security(operation: Operation) -> Operation {
+  Operation(
+    ..operation,
+    security: list.append(operation.security, [NoSecurityRequirement]),
+  )
 }
 
 pub fn opereation_request_body(
@@ -868,7 +899,8 @@ pub type OperationNS {
     parameter_ref: fn(Operation, String) -> Operation,
     response: fn(Operation, Int, fn(Response) -> Response) -> Operation,
     response_ref: fn(Operation, Int, String) -> Operation,
-    security: fn(Operation, String) -> Operation,
+    security: fn(Operation, String, List(String)) -> Operation,
+    no_security: fn(Operation) -> Operation,
     request_body: fn(Operation, fn(RequestBody) -> RequestBody) -> Operation,
   )
 }
@@ -883,6 +915,7 @@ pub const operation = OperationNS(
   response: operation_response,
   response_ref: operation_response_ref,
   security: operation_security,
+  no_security: operation_no_security,
   request_body: opereation_request_body,
 )
 

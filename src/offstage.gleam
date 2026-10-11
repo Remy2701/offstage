@@ -193,7 +193,7 @@ pub fn bearer_auth(
 
   offstage_core.modify_spec(spec, fn(scope) {
     scope
-    |> offstage_core.modify_operation(openapi.operation.security(_, name))
+    |> offstage_core.modify_operation(openapi.operation.security(_, name, []))
     |> offstage_core.modify_doc(fn(doc) {
       use security <- openapi.components.security_scheme(doc, name, "http")
 
@@ -207,6 +207,35 @@ pub fn bearer_auth(
       use unauthorized <- unauthorized.get(request)
       use token <- result.try(require_authorization(request, unauthorized))
       Ok(BearerAuth(token: token))
+    }),
+  )
+}
+
+/// Optionally add bearer authentication to the route.
+pub fn optional_bearer_auth(
+  spec: RouteSpecBuilder,
+  name: String,
+  next: fn(RouteSpecBuilder, RouteCapability(option.Option(BearerAuth), object)) ->
+    RouteSpec,
+) -> RouteSpec {
+  offstage_core.modify_spec(spec, fn(scope) {
+    scope
+    |> offstage_core.modify_operation(openapi.operation.no_security)
+    |> offstage_core.modify_operation(openapi.operation.security(_, name, []))
+    |> offstage_core.modify_doc(fn(doc) {
+      use security <- openapi.components.security_scheme(doc, name, "http")
+
+      security
+      |> openapi.security_scheme.scheme("bearer")
+      |> openapi.security_scheme.bearer_format("JWT")
+    })
+  })
+  |> next(
+    offstage_core.capability(fn(request) {
+      case offstage_core.get_authorization(request) {
+        Ok(token) -> Ok(option.Some(BearerAuth(token: token)))
+        Error(_) -> Ok(option.None)
+      }
     }),
   )
 }
