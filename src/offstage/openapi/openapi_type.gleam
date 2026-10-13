@@ -35,6 +35,7 @@ pub type OpenAPIType {
   )
   Null
   Option(of: OpenAPIType)
+  OneOf(values: List(OpenAPIType))
 }
 
 pub type ObjectProperty {
@@ -52,6 +53,7 @@ pub fn format(type_: OpenAPIType, format fmt: String) -> OpenAPIType {
     Object(..) -> Object(..type_, format: Some(fmt))
     Null -> Null
     Option(of) -> Option(format(of, fmt))
+    OneOf(values) -> OneOf(values: list.map(values, format(_, fmt)))
   }
 }
 
@@ -66,6 +68,7 @@ pub fn default(type_: OpenAPIType, default dflt: Spec) -> OpenAPIType {
     Object(..) -> Object(..type_, default: Some(dflt))
     Null -> Null
     Option(of) -> Option(default(of, dflt))
+    OneOf(values) -> OneOf(values: list.map(values, default(_, dflt)))
   }
 }
 
@@ -80,6 +83,7 @@ pub fn example(type_: OpenAPIType, example ex: Spec) -> OpenAPIType {
     Object(..) -> Object(..type_, examples: list.append(type_.examples, [ex]))
     Null -> Null
     Option(of) -> Option(example(of, ex))
+    OneOf(values) -> OneOf(values: list.map(values, example(_, ex)))
   }
 }
 
@@ -159,6 +163,11 @@ pub fn option(of: OpenAPIType) -> OpenAPIType {
   Option(of: of)
 }
 
+/// A oneOf type representing a union of several possible OpenAPI types.
+pub fn one_of(values: List(OpenAPIType)) -> OpenAPIType {
+  OneOf(values: values)
+}
+
 /// Convert the OpenAPI type to a list of schema type strings.
 fn to_schema_type(type_: OpenAPIType) -> List(String) {
   case type_ {
@@ -170,6 +179,7 @@ fn to_schema_type(type_: OpenAPIType) -> List(String) {
     Object(..) -> ["object"]
     Null -> ["null"]
     Option(of:) -> ["null", ..to_schema_type(of)]
+    OneOf(..) -> []
   }
 }
 
@@ -184,6 +194,7 @@ fn format_of(type_: OpenAPIType) -> Option(String) {
     Object(format:, ..) -> format
     Null -> None
     Option(of:) -> format_of(of)
+    OneOf(..) -> None
   }
 }
 
@@ -198,6 +209,7 @@ fn default_of(type_: OpenAPIType) -> Option(Spec) {
     Object(default:, ..) -> default
     Null -> None
     Option(of:) -> default_of(of)
+    OneOf(..) -> None
   }
 }
 
@@ -212,48 +224,52 @@ fn examples_of(type_: OpenAPIType) -> List(Spec) {
     Object(examples:, ..) -> examples
     Null -> []
     Option(of:) -> examples_of(of)
+    OneOf(..) -> []
   }
 }
 
-/// Convert the OpenAPI type to an OpenAPI schema.
 pub fn to_schema(type_: OpenAPIType) -> openapi.Schema {
-  openapi.Schema(
-    type_: to_schema_type(type_),
-    format: format_of(type_),
-    default: default_of(type_),
-    pattern: case type_ {
-      String(pattern:, ..) -> pattern
-      _ -> None
-    },
-    items: case type_ {
-      Array(items:, ..) -> option.map(items, to_schema)
-      _ -> None
-    },
-    properties: case type_ {
-      Object(properties:, ..) ->
-        properties
-        |> list.map(fn(entry) { #(entry.name, to_schema(entry.type_)) })
-      _ -> []
-    },
-    enum: case type_ {
-      String(enum:, ..) -> enum
-      _ -> []
-    },
-    required: case type_ {
-      Object(properties:, ..) ->
-        properties
-        |> list.filter(fn(entry) { entry.required })
-        |> list.map(fn(entry) { entry.name })
-      _ -> []
-    },
-    examples: examples_of(type_),
-    minimum: case type_ {
-      Number(min:, ..) -> min
-      _ -> None
-    },
-    maximum: case type_ {
-      Number(max:, ..) -> max
-      _ -> None
-    },
-  )
+  case type_ {
+    OneOf(values) -> openapi.schema.one_of(list.map(values, to_schema))
+    _ ->
+      openapi.Schema(
+        type_: to_schema_type(type_),
+        format: format_of(type_),
+        default: default_of(type_),
+        pattern: case type_ {
+          String(pattern:, ..) -> pattern
+          _ -> None
+        },
+        items: case type_ {
+          Array(items:, ..) -> option.map(items, to_schema)
+          _ -> None
+        },
+        properties: case type_ {
+          Object(properties:, ..) ->
+            properties
+            |> list.map(fn(entry) { #(entry.name, to_schema(entry.type_)) })
+          _ -> []
+        },
+        enum: case type_ {
+          String(enum:, ..) -> enum
+          _ -> []
+        },
+        required: case type_ {
+          Object(properties:, ..) ->
+            properties
+            |> list.filter(fn(entry) { entry.required })
+            |> list.map(fn(entry) { entry.name })
+          _ -> []
+        },
+        examples: examples_of(type_),
+        minimum: case type_ {
+          Number(min:, ..) -> min
+          _ -> None
+        },
+        maximum: case type_ {
+          Number(max:, ..) -> max
+          _ -> None
+        },
+      )
+  }
 }
