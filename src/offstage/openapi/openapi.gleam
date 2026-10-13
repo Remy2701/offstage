@@ -228,6 +228,7 @@ pub type Schema {
     minimum: Option(spec.Spec),
     maximum: Option(spec.Spec),
   )
+  SchemaOneOf(values: List(Schema))
 }
 
 fn schema_create(type_: String) -> Schema {
@@ -246,68 +247,89 @@ fn schema_create(type_: String) -> Schema {
   )
 }
 
+fn schema_one_of(schemas: List(Schema)) -> Schema {
+  SchemaOneOf(values: schemas)
+}
+
 fn schema_to_spec(schema: Schema) -> spec.Spec {
-  spec.object([
-    #("type", case schema.type_ {
-      [] -> spec.array([])
-      [single] -> spec.string(single)
-      _ -> spec.array_of(schema.type_, spec.string)
-    }),
-    #("format", spec.nullable(schema.format, spec.string)),
-    #("default", spec.nullable(schema.default, function.identity)),
-    #("items", spec.nullable(schema.items, schema_to_spec)),
-    #(
-      "properties",
-      schema.properties
-        |> spec.none_if_empty
-        |> spec.nullable(spec.object_of_tuple(_, schema_to_spec)),
-    ),
-    #(
-      "required",
-      schema.required
-        |> spec.none_if_empty
-        |> spec.nullable(spec.array_of(_, spec.string)),
-    ),
-    #("pattern", spec.nullable(schema.pattern, spec.string)),
-    #(
-      "enum",
-      schema.enum
-        |> spec.none_if_empty
-        |> spec.nullable(spec.array_of(_, spec.string)),
-    ),
-    #(
-      "examples",
-      schema.examples
-        |> spec.none_if_empty
-        |> spec.nullable(spec.array),
-    ),
-    #(
-      "minimum",
-      schema.minimum
-        |> spec.nullable(function.identity),
-    ),
-    #(
-      "maximum",
-      schema.maximum
-        |> spec.nullable(function.identity),
-    ),
-  ])
+  case schema {
+    Schema(..) ->
+      spec.object([
+        #("type", case schema.type_ {
+          [] -> spec.array([])
+          [single] -> spec.string(single)
+          _ -> spec.array_of(schema.type_, spec.string)
+        }),
+        #("format", spec.nullable(schema.format, spec.string)),
+        #("default", spec.nullable(schema.default, function.identity)),
+        #("items", spec.nullable(schema.items, schema_to_spec)),
+        #(
+          "properties",
+          schema.properties
+            |> spec.none_if_empty
+            |> spec.nullable(spec.object_of_tuple(_, schema_to_spec)),
+        ),
+        #(
+          "required",
+          schema.required
+            |> spec.none_if_empty
+            |> spec.nullable(spec.array_of(_, spec.string)),
+        ),
+        #("pattern", spec.nullable(schema.pattern, spec.string)),
+        #(
+          "enum",
+          schema.enum
+            |> spec.none_if_empty
+            |> spec.nullable(spec.array_of(_, spec.string)),
+        ),
+        #(
+          "examples",
+          schema.examples
+            |> spec.none_if_empty
+            |> spec.nullable(spec.array),
+        ),
+        #(
+          "minimum",
+          schema.minimum
+            |> spec.nullable(function.identity),
+        ),
+        #(
+          "maximum",
+          schema.maximum
+            |> spec.nullable(function.identity),
+        ),
+      ])
+    SchemaOneOf(..) ->
+      spec.object([#("oneOf", spec.array_of(schema.values, schema_to_spec))])
+  }
 }
 
 fn schema_or(schema: Schema, type_: String) -> Schema {
-  Schema(..schema, type_: list.append(schema.type_, [type_]))
+  case schema {
+    Schema(..) -> Schema(..schema, type_: list.append(schema.type_, [type_]))
+    SchemaOneOf(..) -> schema
+  }
 }
 
 fn schema_format(schema: Schema, format: String) -> Schema {
-  Schema(..schema, format: Some(format))
+  case schema {
+    Schema(..) -> Schema(..schema, format: Some(format))
+    SchemaOneOf(..) -> schema
+  }
 }
 
 fn schema_default(schema: Schema, default: spec.Spec) -> Schema {
-  Schema(..schema, default: Some(default))
+  case schema {
+    Schema(..) -> Schema(..schema, default: Some(default))
+    SchemaOneOf(..) -> schema
+  }
 }
 
 fn schema_pattern(schema: Schema, pattern: String) -> Schema {
-  Schema(..schema, pattern: Some(pattern))
+  case schema {
+    Schema(..) -> Schema(..schema, pattern: Some(pattern))
+    SchemaOneOf(..) -> schema
+  }
 }
 
 fn schema_items(
@@ -315,7 +337,10 @@ fn schema_items(
   type_: String,
   builder: fn(Schema) -> Schema,
 ) -> Schema {
-  Schema(..schema, items: Some(builder(schema_create(type_))))
+  case schema {
+    Schema(..) -> Schema(..schema, items: Some(builder(schema_create(type_))))
+    SchemaOneOf(..) -> schema
+  }
 }
 
 fn schema_property(
@@ -324,24 +349,39 @@ fn schema_property(
   type_: String,
   builder: fn(Schema) -> Schema,
 ) -> Schema {
-  Schema(
-    ..schema,
-    properties: list.append(schema.properties, [
-      #(name, builder(schema_create(type_))),
-    ]),
-  )
+  case schema {
+    Schema(..) ->
+      Schema(
+        ..schema,
+        properties: list.append(schema.properties, [
+          #(name, builder(schema_create(type_))),
+        ]),
+      )
+    SchemaOneOf(..) -> schema
+  }
 }
 
 fn schema_required(schema: Schema, required: String) -> Schema {
-  Schema(..schema, required: list.append(schema.required, [required]))
+  case schema {
+    Schema(..) ->
+      Schema(..schema, required: list.append(schema.required, [required]))
+    SchemaOneOf(..) -> schema
+  }
 }
 
 fn schema_enum(schema: Schema, enum: String) -> Schema {
-  Schema(..schema, enum: list.append(schema.enum, [enum]))
+  case schema {
+    Schema(..) -> Schema(..schema, enum: list.append(schema.enum, [enum]))
+    SchemaOneOf(..) -> schema
+  }
 }
 
 fn schema_example(schema: Schema, example: spec.Spec) -> Schema {
-  Schema(..schema, examples: list.append(schema.examples, [example]))
+  case schema {
+    Schema(..) ->
+      Schema(..schema, examples: list.append(schema.examples, [example]))
+    SchemaOneOf(..) -> schema
+  }
 }
 
 // ––––––––––––––––––––––––––––––––––––––––– Namespace ––––––––––––––––––––––––––––––––––––––––– //
@@ -358,6 +398,7 @@ pub type SchemaNS {
     enum: fn(Schema, String) -> Schema,
     pattern: fn(Schema, String) -> Schema,
     example: fn(Schema, spec.Spec) -> Schema,
+    one_of: fn(List(Schema)) -> Schema,
   )
 }
 
@@ -372,6 +413,7 @@ pub const schema = SchemaNS(
   enum: schema_enum,
   pattern: schema_pattern,
   example: schema_example,
+  one_of: schema_one_of,
 )
 
 // ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– //
