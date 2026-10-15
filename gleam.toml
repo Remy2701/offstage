@@ -1,5 +1,5 @@
 name = "offstage"
-version = "0.8.0"
+version = "0.9.0"
 
 description = "A framework to create documented APIs"
 licences = ["Apache-2.0"]
