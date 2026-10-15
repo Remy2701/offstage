@@ -297,7 +297,7 @@ pub fn post_book_route_test_suite() -> Suite {
     )
   }
 
-  Suite("GET /book", [
+  Suite("POST /book", [
     Test("generated openapi docs", fn() {
       let doc =
         spec

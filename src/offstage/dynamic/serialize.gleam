@@ -20,6 +20,10 @@ pub type Encoder(t) {
   Encoder(encoder: fn(t) -> Spec, doc: fn() -> OpenAPIType)
 }
 
+pub type OptionalEncoder(t) {
+  OptionalEncoder(encoder: fn(t) -> Result(Spec, Nil), doc: fn() -> OpenAPIType)
+}
+
 /// A decoder for a specific type `t` that knows how to parse a dynamic value 
 /// and contains the openapi specification of that type.
 pub type Decoder(t) {
@@ -155,6 +159,53 @@ pub fn string_enum(
     }),
     encoder: fn(value) { value |> to_string |> spec.string },
     doc: fn() { openapi_type.string_enum(values |> list.map(to_string)) },
+  )
+}
+
+pub type EnumVariant(a) {
+  EnumVariant(
+    doc: fn() -> OpenAPIType,
+    decoder: decode.Decoder(a),
+    encoder: OptionalEncoder(a),
+  )
+}
+
+pub fn enum(
+  first: EnumVariant(t),
+  or alternative: List(EnumVariant(t)),
+) -> Serializer(t) {
+  Serializer(
+    decoder: decode.one_of(
+      first.decoder,
+      list.map(alternative, fn(variant) { variant.decoder }),
+    ),
+    encoder: fn(data) {
+      [first, ..alternative]
+      |> list.find_map(fn(variant) { variant.encoder.encoder(data) })
+      |> result.unwrap(spec.object([]))
+    },
+    doc: fn() {
+      openapi_type.OneOf(
+        list.map([first, ..alternative], fn(variant) { variant.doc() }),
+      )
+    },
+  )
+}
+
+pub fn variant(
+  serializer serializer: Serializer(b),
+  mapper mapper: fn(b) -> a,
+  inverse_mapper inverse_mapper: fn(a) -> Result(b, Nil),
+) -> EnumVariant(a) {
+  EnumVariant(
+    doc: serializer.doc,
+    decoder: decode.map(serializer.decoder, mapper),
+    encoder: OptionalEncoder(
+      encoder: fn(value) {
+        result.map(inverse_mapper(value), serializer.encoder)
+      },
+      doc: serializer.doc,
+    ),
   )
 }
 

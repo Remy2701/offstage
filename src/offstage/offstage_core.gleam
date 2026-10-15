@@ -161,6 +161,7 @@ pub fn json_response_internal(
   ) -> data,
   next: fn(RouteSpecBuilder, RouteCapability(data, object)) -> RouteSpec,
 ) -> RouteSpec {
+  // TODO: Handle multiple responses with the same return code (merge types if different using OneOf)
   spec
   |> modify_spec(fn(scope) {
     scope

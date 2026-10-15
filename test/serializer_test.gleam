@@ -387,3 +387,45 @@ pub fn serialize_optional_indexed_fields_suite() -> Suite {
     ]),
   )
 }
+
+type MyEnum {
+  StringVariant(value: String)
+  IntVariant(value: Int)
+  BoolVariant(value: Bool)
+}
+
+pub fn serialize_enum_suite() -> Suite {
+  serializer_suite_of_with_dynamic(
+    "serialize_enum_suite",
+    serialize.enum(
+      serialize.variant(serialize.string(), StringVariant, fn(value) {
+        case value {
+          StringVariant(value:) -> Ok(value)
+          _ -> Error(Nil)
+        }
+      }),
+      [
+        serialize.variant(serialize.int(), IntVariant, fn(value) {
+          case value {
+            IntVariant(value:) -> Ok(value)
+            _ -> Error(Nil)
+          }
+        }),
+        serialize.variant(serialize.bool(), BoolVariant, fn(value) {
+          case value {
+            BoolVariant(value:) -> Ok(value)
+            _ -> Error(Nil)
+          }
+        }),
+      ],
+    ),
+    openapi_type.one_of([
+      openapi_type.string(),
+      openapi_type.integer(),
+      openapi_type.boolean(),
+    ]),
+    IntVariant(1),
+    spec.integer(1),
+    dynamic.int(1),
+  )
+}
