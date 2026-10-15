@@ -228,7 +228,11 @@ pub type Schema {
     minimum: Option(spec.Spec),
     maximum: Option(spec.Spec),
   )
-  SchemaOneOf(values: List(Schema))
+  SchemaOneOf(
+    values: List(Schema),
+    // Offstage flags
+    auto_enum: Bool,
+  )
 }
 
 fn schema_create(type_: String) -> Schema {
@@ -248,7 +252,11 @@ fn schema_create(type_: String) -> Schema {
 }
 
 fn schema_one_of(schemas: List(Schema)) -> Schema {
-  SchemaOneOf(values: schemas)
+  SchemaOneOf(values: schemas, auto_enum: False)
+}
+
+fn schema_auto_one_of(schemas: List(Schema)) -> Schema {
+  SchemaOneOf(values: schemas, auto_enum: True)
 }
 
 fn schema_to_spec(schema: Schema) -> spec.Spec {
@@ -399,6 +407,7 @@ pub type SchemaNS {
     pattern: fn(Schema, String) -> Schema,
     example: fn(Schema, spec.Spec) -> Schema,
     one_of: fn(List(Schema)) -> Schema,
+    auto_one_of: fn(List(Schema)) -> Schema,
   )
 }
 
@@ -414,6 +423,7 @@ pub const schema = SchemaNS(
   pattern: schema_pattern,
   example: schema_example,
   one_of: schema_one_of,
+  auto_one_of: schema_auto_one_of,
 )
 
 // ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– //
@@ -615,9 +625,17 @@ fn response_content(
 ) -> Response {
   Response(
     ..response,
-    content: list.append(response.content, [
-      #(type_, Value(builder(MediaType(schema: None, example: None)))),
-    ]),
+    content: modify_or_add(
+      response.content,
+      fn(entry) { entry.0 == type_ },
+      fn(entry) {
+        case entry.1 {
+          Value(inner) -> #(entry.0, Value(builder(inner)))
+          Ref(_) -> entry
+        }
+      },
+      fn() { #(type_, Value(MediaType(schema: None, example: None))) },
+    ),
   )
 }
 
@@ -874,12 +892,24 @@ pub fn operation_response(
 ) -> Operation {
   Operation(
     ..operation,
-    responses: list.append(operation.responses, [
-      #(
-        code,
-        Value(builder(Response(summary: None, description: None, content: []))),
-      ),
-    ]),
+    responses: modify_or_add(
+      operation.responses,
+      fn(value) {
+        case value.0, value.1 {
+          x, Value(..) if x == code -> True
+          _, _ -> False
+        }
+      },
+      fn(value) {
+        case value.1 {
+          Ref(_) -> value
+          Value(inner) -> #(value.0, Value(builder(inner)))
+        }
+      },
+      fn() {
+        #(code, Value(Response(summary: None, description: None, content: [])))
+      },
+    ),
   )
 }
 

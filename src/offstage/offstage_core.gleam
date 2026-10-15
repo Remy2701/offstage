@@ -161,7 +161,6 @@ pub fn json_response_internal(
   ) -> data,
   next: fn(RouteSpecBuilder, RouteCapability(data, object)) -> RouteSpec,
 ) -> RouteSpec {
-  // TODO: Handle multiple responses with the same return code (merge types if different using OneOf)
   spec
   |> modify_spec(fn(scope) {
     scope
@@ -169,12 +168,25 @@ pub fn json_response_internal(
       operation
       |> openapi.operation.response(code, fn(response) {
         response
-        |> openapi.response.description(summary)
+        |> openapi.response.description(
+          response.description
+          |> option.map(fn(desc) { desc <> " or " <> summary })
+          |> option.unwrap(summary),
+        )
         |> openapi.response.content("application/json", fn(media) {
+          let new_schema = openapi_type.to_schema(encoder.doc())
+
           media
-          |> openapi.media_type.set_schema(
-            encoder.doc() |> openapi_type.to_schema(),
-          )
+          |> openapi.media_type.set_schema(case media.schema {
+            option.Some(openapi.SchemaOneOf(values:, auto_enum: True)) ->
+              openapi.SchemaOneOf(
+                values: list.append(values, [new_schema]),
+                auto_enum: True,
+              )
+            option.Some(schema) ->
+              openapi.schema.auto_one_of([schema, new_schema])
+            _ -> new_schema
+          })
         })
       })
     })

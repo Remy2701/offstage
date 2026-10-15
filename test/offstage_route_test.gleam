@@ -346,3 +346,122 @@ pub fn post_book_route_test_suite() -> Suite {
     }),
   ])
 }
+
+// ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– //
+//                                      GET /merge_response                                      //
+// ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– //
+
+type MergeResponseContext {
+  MergeResponseContext(
+    json_response_str: offstage.JsonResponse(String),
+    json_response_int: offstage.JsonResponse(Int),
+    json_response_bool: offstage.JsonResponse(Bool),
+  )
+}
+
+pub fn merge_response_route_test_suite() -> Suite {
+  let spec = {
+    let spec =
+      offstage.get("/merge_response")
+      |> offstage.tag("Sample")
+      |> offstage.summary("Test response merging based on content type")
+
+    use spec, json_response_str <- offstage.json_response(
+      spec,
+      200,
+      "String",
+      serialize.encoder(serialize.string()),
+    )
+
+    use spec, json_response_int <- offstage.json_response(
+      spec,
+      200,
+      "Int",
+      serialize.encoder(serialize.int()),
+    )
+
+    use spec, json_response_bool <- offstage.json_response(
+      spec,
+      200,
+      "Bool",
+      serialize.encoder(serialize.bool()),
+    )
+
+    offstage.build(
+      spec,
+      fn(request) {
+        use json_response_str <- json_response_str.get(request)
+        use json_response_int <- json_response_int.get(request)
+        use json_response_bool <- json_response_bool.get(request)
+
+        Ok(MergeResponseContext(
+          json_response_str:,
+          json_response_int:,
+          json_response_bool:,
+        ))
+      },
+      fn(_, context) { context.json_response_str.apply("A") },
+    )
+  }
+
+  Suite("GET /merge_response", [
+    Test("generated openapi docs", fn() {
+      let doc =
+        spec
+        |> offstage.doc(openapi.openapi())
+
+      use path <- use_expect.find(doc.paths, fn(path) {
+        path.path == "/merge_response"
+      })
+
+      use get <- use_expect.some(path.get, "get")
+      use description <- use_expect.some(get.summary, "summary")
+      use <- use_expect.equal(
+        description,
+        "Test response merging based on content type",
+      )
+      use <- use_expect.contain(get.tags, "Sample")
+
+      use response <- use_expect.key_find(get.responses, 200)
+      use <- use_expect.empty(get.parameters)
+      use <- use_expect.empty(get.security)
+      use <- use_expect.none(get.request_body)
+      use response <- expect_value(response)
+      use content <- use_expect.key_find(response.content, "application/json")
+      use content <- expect_value(content)
+      use schema <- use_expect.some(content.schema, "schema")
+      case schema {
+        openapi.Schema(..) ->
+          use_expect.fail("openapi.Schema", "openapi.openapi.SchemaOneOf")
+        openapi.SchemaOneOf(values:, auto_enum:) -> {
+          use <- use_expect.equal(auto_enum, True)
+          case values {
+            [_, _, _] -> use_expect.pass()
+            _ -> use_expect.fail("Unexpected number of values", "3")
+          }
+        }
+      }
+    }),
+    Test("http response", fn() {
+      let response =
+        simulate.browser_request(http.Get, "/merge_response")
+        |> offstage_core.from_wisp_request()
+        |> spec.route()
+
+      use <- use_expect.equal(response.status, 200)
+      use <- use_expect.equal(
+        response.body,
+        json.string("A") |> json.to_string() |> wisp.Text,
+      )
+
+      use_expect.pass()
+    }),
+  ])
+}
+
+fn expect_value(of: openapi.OrRef(a), next: fn(a) -> garanti.AssertionResult) {
+  case of {
+    openapi.Value(value) -> next(value)
+    openapi.Ref(_) -> use_expect.fail("openapi.Ref", "openapi.Value")
+  }
+}
