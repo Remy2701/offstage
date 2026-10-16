@@ -126,6 +126,20 @@ pub fn max(type_: OpenAPIType, max m: Spec) -> OpenAPIType {
   }
 }
 
+pub fn title(type_: OpenAPIType, title t: String) -> OpenAPIType {
+  case type_ {
+    String(..) -> String(..type_, title: Some(t))
+    Integer(..) -> Integer(..type_, title: Some(t))
+    Number(..) -> Number(..type_, title: Some(t))
+    Boolean(..) -> Boolean(..type_, title: Some(t))
+    Array(..) -> Array(..type_, title: Some(t))
+    Object(..) -> Object(..type_, title: Some(t))
+    Null -> Null
+    Option(of) -> Option(title(of, t))
+    OneOf(values) -> OneOf(values: list.map(values, title(_, t)))
+  }
+}
+
 /// A string type with no specific format, default, pattern, examples, or enum.
 pub fn string() -> OpenAPIType {
   String(
