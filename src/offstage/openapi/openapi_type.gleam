@@ -11,27 +11,41 @@ pub type OpenAPIType {
     examples: List(Spec),
     pattern: Option(String),
     enum: List(String),
+    title: Option(String),
   )
-  Integer(format: Option(String), default: Option(Spec), examples: List(Spec))
+  Integer(
+    format: Option(String),
+    default: Option(Spec),
+    examples: List(Spec),
+    title: Option(String),
+  )
   Number(
     format: Option(String),
     default: Option(Spec),
     examples: List(Spec),
     min: Option(Spec),
     max: Option(Spec),
+    title: Option(String),
   )
-  Boolean(format: Option(String), default: Option(Spec), examples: List(Spec))
+  Boolean(
+    format: Option(String),
+    default: Option(Spec),
+    examples: List(Spec),
+    title: Option(String),
+  )
   Array(
     format: Option(String),
     default: Option(Spec),
     examples: List(Spec),
     items: Option(OpenAPIType),
+    title: Option(String),
   )
   Object(
     format: Option(String),
     default: Option(Spec),
     examples: List(Spec),
     properties: List(ObjectProperty),
+    title: Option(String),
   )
   Null
   Option(of: OpenAPIType)
@@ -114,7 +128,14 @@ pub fn max(type_: OpenAPIType, max m: Spec) -> OpenAPIType {
 
 /// A string type with no specific format, default, pattern, examples, or enum.
 pub fn string() -> OpenAPIType {
-  String(format: None, default: None, pattern: None, examples: [], enum: [])
+  String(
+    format: None,
+    default: None,
+    pattern: None,
+    examples: [],
+    enum: [],
+    title: None,
+  )
 }
 
 /// A string type with a predefined set of allowed values (enum).
@@ -125,37 +146,57 @@ pub fn string_enum(options: List(String)) -> OpenAPIType {
     pattern: None,
     examples: [],
     enum: options,
+    title: None,
   )
 }
 
 /// An integer type with no specific format, default, or examples.
 pub fn integer() -> OpenAPIType {
-  Integer(format: None, default: None, examples: [])
+  Integer(format: None, default: None, examples: [], title: None)
 }
 
 /// A number type with no specific format, default, or examples.
 pub fn number() -> OpenAPIType {
-  Number(format: None, default: None, examples: [], min: None, max: None)
+  Number(
+    format: None,
+    default: None,
+    examples: [],
+    min: None,
+    max: None,
+    title: None,
+  )
 }
 
 /// A boolean type with no specific format, default, or examples.
 pub fn boolean() -> OpenAPIType {
-  Boolean(format: None, default: None, examples: [])
+  Boolean(format: None, default: None, examples: [], title: None)
 }
 
 /// An array type with no specific format, default, items, or examples.
 pub fn untyped_array() -> OpenAPIType {
-  Array(format: None, default: None, items: None, examples: [])
+  Array(format: None, default: None, items: None, examples: [], title: None)
 }
 
 /// An array type with a specified item type and no specific format, default, or examples.
 pub fn array(items: OpenAPIType) -> OpenAPIType {
-  Array(format: None, default: None, items: Some(items), examples: [])
+  Array(
+    format: None,
+    default: None,
+    items: Some(items),
+    examples: [],
+    title: None,
+  )
 }
 
 /// An object type with the given properties and no specific format, default, or examples.
 pub fn object(properties: List(ObjectProperty)) -> OpenAPIType {
-  Object(format: None, default: None, properties: properties, examples: [])
+  Object(
+    format: None,
+    default: None,
+    properties: properties,
+    examples: [],
+    title: None,
+  )
 }
 
 /// An optional type wrapping another OpenAPI type.
@@ -228,6 +269,21 @@ fn examples_of(type_: OpenAPIType) -> List(Spec) {
   }
 }
 
+/// Get the title of the OpenAPI type, if any.
+fn title_of(type_: OpenAPIType) -> Option(String) {
+  case type_ {
+    String(title:, ..) -> title
+    Integer(title:, ..) -> title
+    Number(title:, ..) -> title
+    Boolean(title:, ..) -> title
+    Array(title:, ..) -> title
+    Object(title:, ..) -> title
+    Null -> None
+    Option(of:) -> title_of(of)
+    OneOf(..) -> None
+  }
+}
+
 pub fn to_schema(type_: OpenAPIType) -> openapi.Schema {
   case type_ {
     OneOf(values) -> openapi.schema.one_of(list.map(values, to_schema))
@@ -270,6 +326,7 @@ pub fn to_schema(type_: OpenAPIType) -> openapi.Schema {
           Number(max:, ..) -> max
           _ -> None
         },
+        title: title_of(type_),
       )
   }
 }

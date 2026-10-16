@@ -174,7 +174,9 @@ pub fn json_response_internal(
           |> option.unwrap(summary),
         )
         |> openapi.response.content("application/json", fn(media) {
-          let new_schema = openapi_type.to_schema(encoder.doc())
+          let new_schema =
+            openapi_type.to_schema(encoder.doc())
+            |> openapi.schema.title(summary)
 
           media
           |> openapi.media_type.set_schema(case media.schema {

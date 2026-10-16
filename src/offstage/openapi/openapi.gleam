@@ -227,6 +227,7 @@ pub type Schema {
     examples: List(spec.Spec),
     minimum: Option(spec.Spec),
     maximum: Option(spec.Spec),
+    title: Option(String),
   )
   SchemaOneOf(
     values: List(Schema),
@@ -248,6 +249,7 @@ fn schema_create(type_: String) -> Schema {
     examples: [],
     minimum: None,
     maximum: None,
+    title: None,
   )
 }
 
@@ -284,6 +286,7 @@ fn schema_to_spec(schema: Schema) -> spec.Spec {
             |> spec.nullable(spec.array_of(_, spec.string)),
         ),
         #("pattern", spec.nullable(schema.pattern, spec.string)),
+        #("title", spec.nullable(schema.title, spec.string)),
         #(
           "enum",
           schema.enum
@@ -392,6 +395,13 @@ fn schema_example(schema: Schema, example: spec.Spec) -> Schema {
   }
 }
 
+fn schema_title(schema: Schema, title: String) -> Schema {
+  case schema {
+    Schema(..) -> Schema(..schema, title: Some(title))
+    SchemaOneOf(..) -> schema
+  }
+}
+
 // ––––––––––––––––––––––––––––––––––––––––– Namespace ––––––––––––––––––––––––––––––––––––––––– //
 
 pub type SchemaNS {
@@ -408,6 +418,7 @@ pub type SchemaNS {
     example: fn(Schema, spec.Spec) -> Schema,
     one_of: fn(List(Schema)) -> Schema,
     auto_one_of: fn(List(Schema)) -> Schema,
+    title: fn(Schema, String) -> Schema,
   )
 }
 
@@ -424,6 +435,7 @@ pub const schema = SchemaNS(
   example: schema_example,
   one_of: schema_one_of,
   auto_one_of: schema_auto_one_of,
+  title: schema_title,
 )
 
 // ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– //
