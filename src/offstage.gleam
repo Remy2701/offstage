@@ -176,6 +176,31 @@ pub fn require_header(
   |> result.map_error(fn(_) { response("Missing header: " <> header) })
 }
 
+pub fn header(
+  spec: RouteSpecBuilder,
+  name: String,
+  response: fn(String) -> WispResponse,
+  next: fn(RouteSpecBuilder, RouteCapability(String, object)) -> RouteSpec,
+) -> RouteSpec {
+  offstage_core.modify_spec(spec, fn(scope) {
+    scope
+    |> offstage_core.modify_operation(fn(operation) {
+      openapi.operation.parameter(
+        operation,
+        name,
+        openapi.ParameterInHeader,
+        fn(parameter) { openapi.parameter.required(parameter, True) },
+      )
+    })
+  })
+  |> next(
+    offstage_core.capability(fn(request) {
+      use value <- result.try(require_header(request, name, response))
+      Ok(value)
+    }),
+  )
+}
+
 // ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– //
 //                                        Authentication                                         //
 // ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– //
