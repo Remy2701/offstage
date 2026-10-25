@@ -164,6 +164,19 @@ pub fn doc(spec: RouteSpec, openapi: openapi.OpenAPI) -> openapi.OpenAPI {
 }
 
 // ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– //
+//                                            Header                                             //
+// ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– //
+
+pub fn require_header(
+  req: Request,
+  header: String,
+  response: fn(String) -> WispResponse,
+) -> Result(String, WispResponse) {
+  offstage_core.get_header(req, header)
+  |> result.map_error(fn(_) { response("Missing header: " <> header) })
+}
+
+// ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– //
 //                                        Authentication                                         //
 // ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– //
 

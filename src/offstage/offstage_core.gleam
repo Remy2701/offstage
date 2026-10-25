@@ -619,14 +619,22 @@ fn decoder_error_to_string(error: decode.DecodeError) -> String {
 }
 
 //-----------------------------------------------------------------------------------------------//
+//                                            Header                                             //
+//-----------------------------------------------------------------------------------------------//
+
+/// Require the given token from the request headers and execute the given function accordingly
+pub fn get_header(req: Request, header: String) -> Result(String, Nil) {
+  request.get_header(req, header)
+}
+
+//-----------------------------------------------------------------------------------------------//
 //                                         Authorization                                         //
 //-----------------------------------------------------------------------------------------------//
 
 /// Require the given token from the request headers and execute the given function accordingly
 pub fn get_authorization(req: Request) -> Result(String, Nil) {
-  list.find(req.headers, fn(entry) { entry.0 == "authorization" })
-  |> result.map(fn(res) {
-    let token = res.1
+  get_header(req, "Authorization")
+  |> result.map(fn(token) {
     case string.starts_with(token, "Bearer ") {
       True -> string.slice(token, 7, string.length(token))
       False -> token
